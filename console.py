@@ -1,0 +1,202 @@
+#!/usr/bin/python3
+""" Module of console """
+
+import shlex
+import cmd
+import sys
+import models
+import json
+from datetime import datetime
+from models.base_model import BaseModel
+from models.user import User
+from models.state import State
+from models.city import City
+from models.amenity import Amenity
+from models.place import Place
+from models.review import Review
+from models import storage
+
+
+class HBNBCommand(cmd.Cmd):
+    """ class HBNB command line console """
+
+    prompt = '(hbnb) '
+    group_class = {'BaseModel': BaseModel,
+                   'User': User,
+                   'State': State,
+                   'City': City,
+                   'Amenity': Amenity,
+                   'Place': Place,
+                   'Review': Review}
+
+    def emptyline(self):
+        """
+        Called when an empty line is entered
+        Prints the prompt again
+        """
+        pass
+
+    def do_quit(self, line):
+        """Quit command to exit the program"""
+        return True
+
+    def do_EOF(self, line):
+        """Executes the EOF (Ctrl -D/ Ctrl-Z) commands on console"""
+        return True
+
+    def do_create(self, arg):
+        """ Save in the json file and print the ID """
+        if arg in HBNBCommand.group_class:
+            obj = self.group_class[arg]()
+            print("{}".format(getattr(obj, 'id')))
+            obj.save()
+        elif not arg:
+            print("** class name missing **")
+        elif arg not in self.group_class:
+            print("** class doesn't exist **")
+            return
+
+    def do_show(self, arg):
+        """
+        Prints the string representation of an instance based on the
+        class name and id.
+        """
+        _line = shlex.split(arg)
+        if len(_line) == 0:
+            print("** class name missing **")
+        elif _line[0] not in self.group_class:
+            print("** class doesn't exist **")
+        elif len(_line) == 1:
+            print("** instance id missing **")
+        elif len(_line) == 2:
+            key = _line[0] + "." + _line[1]
+            ob = storage.all()
+            if ob.get(key):
+                print(ob[key])
+            else:
+                print("** no instance found **")
+
+    def do_destroy(self, arg):
+        """ Deletes an instance based on the class name and id. """
+        _line = shlex.split(arg)
+        if len(_line) == 0:
+            print("** class name missing **")
+            return
+        elif _line[0] not in self.group_class:
+            print("** class doesn't exist **")
+            return
+        elif len(_line) == 1:
+            print("** instance id missing **")
+            return
+        else:
+            objects = storage.all()
+            key = "{}.{}".format(_line[0], _line[1])
+            if key not in objects.keys():
+                print("** no instance found **")
+                return
+            else:
+                objects.pop(key)
+                storage.save()
+                return
+
+    def do_all(self, arg):
+        """
+        Prints all string representation of all instances based
+        or not on the class name.
+        """
+        objects = storage.all()
+        _list = []
+        if arg:
+            if arg in self.group_class:
+                for key, v in objects.items():
+                    splitkey = key.split(".")
+                    if splitkey[0] == arg:
+                        _list.append(str(v))
+            else:
+                print("** class doesn't exist **")
+        else:
+            for v in objects.values():
+                _list.append(str(v))
+        if _list != []:
+            print(_list)
+
+    def do_update(self, arg):
+        """ Updates an instance based on the class name
+        and id by adding or updating attribute.
+        """
+        _line = shlex.split(arg)
+        if len(_line) == 0:
+            print("** class name missing **")
+        elif _line[0] not in self.group_class:
+            print("** class doesn't exist **")
+        elif len(_line) == 1:
+            print("** instance id missing **")
+        elif len(_line) == 2:
+            if storage.all().get(_line[0] + "." + _line[1]):
+                print("** attribute name missing **")
+            else:
+                print("** no instance found **")
+        elif len(_line) == 3:
+            print("** value missing **")
+        else:
+            if _line[0] in self.group_class:
+                key = _line[0] + "." + _line[1]
+                objects = storage.all()
+                if key in objects:
+                    value = objects.get(key)
+                    try:
+                        attr = getattr(value, _line[2])
+                        setattr(value, _line[2], type(attr)(_line[3]))
+                    except:
+                        setattr(value, _line[2], _line[3])
+                    storage.save()
+                else:
+                    print("** no instance found **")
+
+    def do_count(self, line):
+        """count number of objs of this class"""
+        count = 0
+        if line in HBNBCommand.group_class:
+            for obj in storage.all().values():
+                if line in obj.__class__.__name__:
+                    count += 1
+            print(count)
+        else:
+            return
+
+    def default(self, line):
+        """retrieve all instances of a clss by using:
+        <class name>.funtion()"""
+        my_line = line.split(".")
+        if my_line[0] in self.group_class:
+            try:
+                args = my_line[1].split("(")
+                if args[0] == "all":
+                    print(my_line[0])
+                    HBNBCommand.do_all(self, my_line[0])
+                elif args[0] == "count":
+                    HBNBCommand.do_count(self, my_line[0])
+                elif args[0] == "show":
+                    id_class = args[1]
+                    param = my_line[0] + " " + id_class[1:-2]
+                    HBNBCommand.do_show(self, param)
+                elif args[0] == "destroy":
+                    id_class = args[1]
+                    param = my_line[0] + " " + id_class[1:-2]
+                    HBNBCommand.do_destroy(self, param)
+                elif args[0] == "update":
+                    paramer = args[1].split(',')
+                    id_class = paramer[0].strip('"')
+                    dirt = paramer[1].split(':')
+                    name_atr = dirt[0].strip(" {'")
+                    value_atr = dirt[1].strip(' "})')
+                    values = id_class + ' ' + name_atr + ' ' + value_atr
+                    param = my_line[0] + ' ' + values
+                    HBNBCommand.do_update(self, param)
+            except:
+                print("*** Unknown syntax:", line)
+        else:
+            print("*** Unknown syntax:", line)
+
+if __name__ == '__main__':
+    HBNBCommand().cmdloop()
