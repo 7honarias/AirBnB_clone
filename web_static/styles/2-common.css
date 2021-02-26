@@ -1,0 +1,11 @@
+* {
+    margin: 0;
+    padding: 0;
+}
+body {
+    height: 100%;
+}
+
+main {
+    min-height: calc(100vh - 61px - 61px);
+}
